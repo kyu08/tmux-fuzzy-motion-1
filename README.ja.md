@@ -14,8 +14,9 @@ CLI です。現在の viewport からジャンプ対象を抽出し、fuzzy sea
 - `fzf` による fuzzy match
 - `jsmigemo` による英字 query の Migemo マッチ
 - overlay 描画時も pane の色を維持
+- 外部 daemon を再利用し、matcher と Migemo の起動コストを常駐側へ寄せる
 - 単一キーの大文字 hint で素早く選択
-- query は対象 pane 内に描画し、終了時に元の pane を復元
+- UI は tmux popup で表示し、常駐用の scratch window を作らない
 
 ## 動作要件
 
@@ -51,8 +52,15 @@ npx tmux-fuzzy-motion@latest doctor
 `tmux.conf` に次を追加してください。
 
 ```tmux
-bind-key -T copy-mode-vi s run-shell -b 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
-bind-key -T copy-mode s run-shell -b 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+bind-key -T copy-mode-vi s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+bind-key -T copy-mode s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+```
+
+`run-shell` を経由せずに tmux から直接 popup を開きたい場合は、次の設定も使えます。
+
+```tmux
+bind-key -T copy-mode-vi s run-shell -C "display-popup -E -B -x '##{popup_pane_left}' -y '##{popup_pane_top}' -w '#{pane_width}' -h '#{pane_height}' 'tmux-fuzzy-motion popup-live #{pane_id}'"
+bind-key -T copy-mode s run-shell -C "display-popup -E -B -x '##{popup_pane_left}' -y '##{popup_pane_top}' -w '#{pane_width}' -h '#{pane_height}' 'tmux-fuzzy-motion popup-live #{pane_id}'"
 ```
 
 設定変更後は tmux を reload します。
@@ -84,10 +92,12 @@ tmux source-file ~/.tmux.conf
 
 ```text
 tmux-fuzzy-motion start <pane-id> <client-tty>
+tmux-fuzzy-motion popup-live <pane-id>
 tmux-fuzzy-motion doctor
 ```
 
-`input` は `start` から内部的に使うサブコマンドです。
+`popup` と `daemon` は内部サブコマンドです。`popup-live` は `display-popup`
+から直接起動する設定向けです。
 
 ## Doctor
 
@@ -131,11 +141,17 @@ pnpm run dev
 pnpm check
 ```
 
+warm な daemon を前提に popup 起動時間を測る場合:
+
+```bash
+pnpm bench:startup dist/cli.js
+```
+
 ## 制約
 
 - 対象は現在の viewport のみ
 - `copy-mode` 専用
 - query 入力は ASCII 寄り
 - combining character の完全な扱いは未保証
-- overlay は一時的な tmux pane を swap して表示し、終了時に元へ戻す
+- `display-popup` が必要なため、tmux 3.2 以上が必須
 - query は pane 内の最下行右端に描画する

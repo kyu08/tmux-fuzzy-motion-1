@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   deleteBackwardChar,
   deleteBackwardWord,
+  parseDaemonRequestLine,
   renderQueryOnBottomLine,
+  serializeDaemonMessageLine,
 } from './input'
 
 describe('input editing helpers', () => {
@@ -25,5 +27,53 @@ describe('input editing helpers', () => {
 
   it('keeps the base line when query is empty', () => {
     expect(renderQueryOnBottomLine('alpha beta', 12, '')).toBe('alpha beta  ')
+  })
+
+  it('parses a prepare daemon request', () => {
+    expect(
+      parseDaemonRequestLine(
+        JSON.stringify({
+          type: 'prepare',
+          stateFile: '/tmp/state.json',
+        }),
+      ),
+    ).toEqual({
+      type: 'prepare',
+      stateFile: '/tmp/state.json',
+    })
+  })
+
+  it('parses a ping daemon request', () => {
+    expect(parseDaemonRequestLine(JSON.stringify({ type: 'ping' }))).toEqual({
+      type: 'ping',
+    })
+  })
+
+  it('parses a match daemon request with previous hints', () => {
+    expect(
+      parseDaemonRequestLine(
+        JSON.stringify({
+          type: 'match',
+          query: 'abc',
+          previousHints: {
+            targetA: 'A',
+          },
+        }),
+      ),
+    ).toEqual({
+      type: 'match',
+      query: 'abc',
+      previousHints: {
+        targetA: 'A',
+      },
+    })
+  })
+
+  it('serializes daemon messages as JSON lines', () => {
+    expect(
+      serializeDaemonMessageLine({
+        type: 'busy',
+      }),
+    ).toBe(`${JSON.stringify({ type: 'busy' })}\n`)
   })
 })

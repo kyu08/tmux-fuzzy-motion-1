@@ -1,12 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMoveCursorCommands } from '../core/action'
-import {
-  createScratchWindow,
-  getPaneContext,
-  resizeWindow,
-  swapPanes,
-} from './tmux'
+import { displayPopup, focusClientPane, getPaneStartContext } from './tmux'
 
 describe('tmux helpers', () => {
   it('creates copy-mode cursor movement commands', () => {
@@ -24,88 +19,95 @@ describe('tmux helpers', () => {
     ])
   })
 
-  it('resolves pane context for the target pane', async () => {
+  it('resolves pane start context for the target pane', async () => {
     const tmux = {
       run: vi.fn(),
       runQuiet: vi.fn(),
       capture: vi
         .fn()
-        .mockResolvedValueOnce('%127\t181\t64\t/tmp/tmux-fuzzy-motion'),
+        .mockResolvedValueOnce('%127\t1\t181\t64\t/tmp/tmux-fuzzy-motion'),
     }
 
-    await expect(getPaneContext(tmux, '%127')).resolves.toEqual({
+    await expect(getPaneStartContext(tmux, '%127')).resolves.toEqual({
       paneId: '%127',
+      inCopyMode: true,
       width: 181,
       height: 64,
       currentPath: '/tmp/tmux-fuzzy-motion',
     })
   })
 
-  it('creates a detached scratch window', async () => {
+  it('fails when the target pane is not in copy-mode', async () => {
     const tmux = {
       run: vi.fn(),
       runQuiet: vi.fn(),
-      capture: vi.fn().mockResolvedValueOnce('@1\t%200'),
+      capture: vi
+        .fn()
+        .mockResolvedValueOnce('%127\t0\t181\t64\t/tmp/tmux-fuzzy-motion'),
     }
 
-    await expect(
-      createScratchWindow(tmux, '/tmp', 'sh -lc "echo test"'),
-    ).resolves.toEqual({
-      windowId: '@1',
-      paneId: '%200',
+    await expect(getPaneStartContext(tmux, '%127')).rejects.toThrow(
+      'tmux-fuzzy-motion: pane is not in copy-mode',
+    )
+  })
+
+  it('maps switch-client failures to a client not found error', async () => {
+    const tmux = {
+      run: vi.fn().mockRejectedValueOnce(new Error('no such client')),
+      runQuiet: vi.fn(),
+      capture: vi.fn(),
+    }
+
+    await expect(focusClientPane(tmux, '%127', '/dev/ttys001')).rejects.toThrow(
+      'tmux-fuzzy-motion: client not found',
+    )
+  })
+
+  it('runs display-popup with the target client and pane', async () => {
+    const tmux = {
+      run: vi.fn().mockResolvedValue(undefined),
+      runQuiet: vi.fn(),
+      capture: vi.fn(),
+    }
+
+    await displayPopup(tmux, {
+      command: [
+        process.execPath,
+        '/tmp/dist/cli.js',
+        'popup',
+        '--state-file',
+        '/tmp/state.json',
+      ],
+      currentPath: '/tmp/work',
+      height: 24,
+      targetClient: '/dev/ttys001',
+      targetPane: '%127',
+      width: 80,
     })
 
-    expect(tmux.capture).toHaveBeenCalledWith([
-      'new-window',
-      '-P',
-      '-d',
-      '-n',
-      '[tmux-fuzzy-motion]',
+    expect(tmux.run).toHaveBeenCalledWith([
+      'display-popup',
+      '-E',
+      '-B',
       '-c',
-      '/tmp',
-      '-F',
-      '#{window_id}\t#{pane_id}',
-      'sh -lc "echo test"',
-    ])
-  })
-
-  it('resizes a scratch window to the target pane dimensions', async () => {
-    const tmux = {
-      run: vi.fn().mockResolvedValue(undefined),
-      runQuiet: vi.fn(),
-      capture: vi.fn(),
-    }
-
-    await resizeWindow(tmux, '@1', { width: 181, height: 64 })
-
-    expect(tmux.run).toHaveBeenCalledWith([
-      'resize-window',
-      '-t',
-      '@1',
-      '-x',
-      '181',
-      '-y',
-      '64',
-    ])
-  })
-
-  it('swaps panes using the target pane geometry', async () => {
-    const tmux = {
-      run: vi.fn().mockResolvedValue(undefined),
-      runQuiet: vi.fn(),
-      capture: vi.fn(),
-    }
-
-    await swapPanes(tmux, '%200', '%127')
-
-    expect(tmux.run).toHaveBeenCalledWith([
-      'swap-pane',
-      '-d',
-      '-Z',
-      '-s',
-      '%200',
+      '/dev/ttys001',
       '-t',
       '%127',
+      '-d',
+      '/tmp/work',
+      '-x',
+      '#{popup_pane_left}',
+      '-y',
+      '#{popup_pane_top}',
+      '-w',
+      '80',
+      '-h',
+      '24',
+      process.execPath,
+      '/tmp/dist/cli.js',
+      'popup',
+      '--state-file',
+      '/tmp/state.json',
     ])
   })
 })

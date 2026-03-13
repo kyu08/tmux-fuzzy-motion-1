@@ -16,13 +16,16 @@ export type PaneContext = PaneGeometry & {
   currentPath: string
 }
 
-export type ScratchWindow = {
-  windowId: string
-  paneId: string
+export type PaneStartContext = PaneContext & {
+  inCopyMode: boolean
 }
 
-export const shellQuote = (value: string): string =>
-  `'${value.replaceAll("'", "'\\''")}'`
+export type DisplayPopupOptions = PaneGeometry & {
+  command: string[]
+  currentPath: string
+  targetClient: string
+  targetPane: string
+}
 
 export const createTmuxClient = (): TmuxClient => ({
   async run(args) {
@@ -41,77 +44,44 @@ export const createTmuxClient = (): TmuxClient => ({
   },
 })
 
-export const ensurePaneExists = async (
-  tmux: TmuxClient,
-  paneId: string,
-): Promise<void> => {
-  try {
-    await tmux.capture(['display-message', '-p', '-t', paneId, '#{pane_id}'])
-  } catch (error) {
-    throw new Error('tmux-fuzzy-motion: pane not found', { cause: error })
-  }
-}
-
-export const ensureClientExists = async (
-  tmux: TmuxClient,
-  clientTty: string,
-): Promise<void> => {
-  const clients = (await tmux.capture(['list-clients', '-F', '#{client_tty}']))
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  if (!clients.includes(clientTty)) {
-    throw new Error('tmux-fuzzy-motion: client not found')
-  }
-}
-
-export const ensurePaneInCopyMode = async (
-  tmux: TmuxClient,
-  paneId: string,
-): Promise<void> => {
-  const value = (
-    await tmux.capture([
-      'display-message',
-      '-p',
-      '-t',
-      paneId,
-      '#{pane_in_mode}',
-    ])
-  ).trim()
-
-  if (value !== '1') {
-    throw new Error('tmux-fuzzy-motion: pane is not in copy-mode')
-  }
-}
-
 export const focusClientPane = async (
   tmux: TmuxClient,
   paneId: string,
   clientTty: string,
 ): Promise<void> => {
-  await tmux.run(['switch-client', '-c', clientTty, '-t', paneId])
-  await tmux.run(['select-pane', '-t', paneId])
+  try {
+    await tmux.run(['switch-client', '-c', clientTty, '-t', paneId])
+  } catch (error) {
+    throw new Error('tmux-fuzzy-motion: client not found', { cause: error })
+  }
 }
 
-export const getPaneContext = async (
+export const getPaneStartContext = async (
   tmux: TmuxClient,
   paneId: string,
-): Promise<PaneContext> => {
-  const output = (
-    await tmux.capture([
-      'display-message',
-      '-p',
-      '-t',
-      paneId,
-      '#{pane_id}\t#{pane_width}\t#{pane_height}\t#{pane_current_path}',
-    ])
-  ).trim()
+): Promise<PaneStartContext> => {
+  let output = ''
 
-  const [resolvedPaneId, width, height, currentPath] = output.split('\t')
+  try {
+    output = (
+      await tmux.capture([
+        'display-message',
+        '-p',
+        '-t',
+        paneId,
+        '#{pane_id}\t#{pane_in_mode}\t#{pane_width}\t#{pane_height}\t#{pane_current_path}',
+      ])
+    ).trim()
+  } catch (error) {
+    throw new Error('tmux-fuzzy-motion: pane not found', { cause: error })
+  }
+
+  const [resolvedPaneId, paneInMode, width, height, currentPath] =
+    output.split('\t')
 
   if (
     !resolvedPaneId ||
+    !paneInMode ||
     !currentPath ||
     [width, height]
       .map((value) => Number(value))
@@ -120,80 +90,43 @@ export const getPaneContext = async (
     throw new Error('tmux-fuzzy-motion: failed to resolve pane context')
   }
 
+  if (paneInMode !== '1') {
+    throw new Error('tmux-fuzzy-motion: pane is not in copy-mode')
+  }
+
   return {
     paneId: resolvedPaneId,
+    inCopyMode: true,
     width: Number(width),
     height: Number(height),
     currentPath,
   }
 }
 
-export const createScratchWindow = async (
+export const displayPopup = async (
   tmux: TmuxClient,
-  currentPath: string,
-  shellCommand: string,
-): Promise<ScratchWindow> => {
-  const output = (
-    await tmux.capture([
-      'new-window',
-      '-P',
-      '-d',
-      '-n',
-      '[tmux-fuzzy-motion]',
-      '-c',
-      currentPath,
-      '-F',
-      '#{window_id}\t#{pane_id}',
-      shellCommand,
-    ])
-  ).trim()
-
-  const [windowId, paneId] = output.split('\t')
-
-  if (!windowId || !paneId) {
-    throw new Error('tmux-fuzzy-motion: failed to create scratch window')
-  }
-
-  return { windowId, paneId }
-}
-
-export const resizeWindow = async (
-  tmux: TmuxClient,
-  windowId: string,
-  geometry: PaneGeometry,
+  options: DisplayPopupOptions,
 ): Promise<void> => {
   await tmux.run([
-    'resize-window',
+    'display-popup',
+    '-E',
+    '-B',
+    '-c',
+    options.targetClient,
     '-t',
-    windowId,
-    '-x',
-    String(geometry.width),
-    '-y',
-    String(geometry.height),
-  ])
-}
-
-export const swapPanes = async (
-  tmux: TmuxClient,
-  sourcePaneId: string,
-  targetPaneId: string,
-): Promise<void> => {
-  await tmux.run([
-    'swap-pane',
+    options.targetPane,
     '-d',
-    '-Z',
-    '-s',
-    sourcePaneId,
-    '-t',
-    targetPaneId,
+    options.currentPath,
+    '-x',
+    '#{popup_pane_left}',
+    '-y',
+    '#{popup_pane_top}',
+    '-w',
+    String(options.width),
+    '-h',
+    String(options.height),
+    ...options.command,
   ])
-}
-
-export const killWindow = async (
-  tmux: TmuxClient,
-  windowId: string,
-): Promise<void> => {
-  await tmux.run(['kill-window', '-t', windowId])
 }
 
 export const getTmuxVersion = async (): Promise<string> => {

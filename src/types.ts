@@ -20,8 +20,8 @@ export type MatchTarget = Candidate & {
 export type InputState = {
   paneId: string
   clientTty: string
-  lines: string[]
-  candidates: Candidate[]
+  displayLines: string[]
+  plainLines: string[]
   width: number
   height: number
 }
@@ -33,4 +33,38 @@ export type InputResult =
   | {
       status: 'selected'
       target: MatchTarget
+    }
+
+export type DaemonRequest =
+  | {
+      type: 'ping'
+    }
+  | {
+      type: 'prepare'
+      stateFile: string
+    }
+  | {
+      type: 'match'
+      query: string
+      previousHints: Record<string, string>
+    }
+
+export type DaemonResponse =
+  | {
+      type: 'pong'
+    }
+  | {
+      type: 'prepared'
+      candidateCount: number
+    }
+  | {
+      type: 'matchResult'
+      targets: MatchTarget[]
+    }
+  | {
+      type: 'busy'
+    }
+  | {
+      type: 'error'
+      message: string
     }

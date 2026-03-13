@@ -1,12 +1,14 @@
 import { runDoctor } from './commands/doctor'
-import { runInput } from './commands/input'
+import { runDaemon, runPopup, runPopupLive } from './commands/input'
 import { runStart } from './commands/start'
 
 const usage = `tmux-fuzzy-motion
 
 Usage:
   tmux-fuzzy-motion start <pane-id> <client-tty>
-  tmux-fuzzy-motion input --state-file <path> --result-file <path>
+  tmux-fuzzy-motion popup --state-file <path> --result-file <path> --socket <path>
+  tmux-fuzzy-motion popup-live <pane-id>
+  tmux-fuzzy-motion daemon --socket <path>
   tmux-fuzzy-motion doctor`
 
 const main = async (): Promise<number> => {
@@ -15,8 +17,12 @@ const main = async (): Promise<number> => {
   switch (command) {
     case 'start':
       return runStart(args)
-    case 'input':
-      return runInput(args)
+    case 'popup':
+      return runPopup(args)
+    case 'popup-live':
+      return runPopupLive(args)
+    case 'daemon':
+      return runDaemon(args)
     case 'doctor':
       return runDoctor()
     default:

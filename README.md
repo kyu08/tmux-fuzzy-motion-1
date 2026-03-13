@@ -14,8 +14,9 @@ Japanese text through Migemo.
 - Supports fuzzy matching with `fzf`
 - Supports Migemo matching for alphabetic queries via `jsmigemo`
 - Preserves pane colors while drawing the overlay
+- Reuses an external daemon process so matcher and Migemo startup stay warm
 - Uses single-key uppercase hints for fast selection
-- Renders the query inside the target pane and restores the original pane after finishing
+- Opens the UI in a tmux popup instead of creating a persistent scratch window
 
 ## Requirements
 
@@ -51,8 +52,16 @@ npx tmux-fuzzy-motion@latest doctor
 Add these bindings to your `tmux.conf`:
 
 ```tmux
-bind-key -T copy-mode-vi s run-shell -b 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
-bind-key -T copy-mode s run-shell -b 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+bind-key -T copy-mode-vi s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+bind-key -T copy-mode s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+```
+
+If you want tmux to open the popup directly and avoid the extra `run-shell`
+hop, use this instead:
+
+```tmux
+bind-key -T copy-mode-vi s run-shell -C "display-popup -E -B -x '##{popup_pane_left}' -y '##{popup_pane_top}' -w '#{pane_width}' -h '#{pane_height}' 'tmux-fuzzy-motion popup-live #{pane_id}'"
+bind-key -T copy-mode s run-shell -C "display-popup -E -B -x '##{popup_pane_left}' -y '##{popup_pane_top}' -w '#{pane_width}' -h '#{pane_height}' 'tmux-fuzzy-motion popup-live #{pane_id}'"
 ```
 
 Reload tmux after editing the config:
@@ -84,10 +93,12 @@ tmux source-file ~/.tmux.conf
 
 ```text
 tmux-fuzzy-motion start <pane-id> <client-tty>
+tmux-fuzzy-motion popup-live <pane-id>
 tmux-fuzzy-motion doctor
 ```
 
-`input` is an internal subcommand used by `start`.
+`popup` and `daemon` are internal subcommands. `popup-live` is intended for
+direct `display-popup` bindings.
 
 ## Doctor
 
@@ -131,11 +142,17 @@ Run the full local check:
 pnpm check
 ```
 
+Measure popup startup against a warm daemon:
+
+```bash
+pnpm bench:startup dist/cli.js
+```
+
 ## Limitations
 
 - Targets are limited to the current viewport
 - Designed for `copy-mode` only
 - Query input is ASCII-oriented
 - Exact behavior for combining characters is not fully guaranteed
-- The overlay swaps in a temporary tmux pane and restores the original pane when it exits
+- Requires `display-popup`, so tmux 3.2 or later is mandatory
 - The query is drawn on the bottom row inside the pane, aligned to the right edge
