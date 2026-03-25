@@ -56,6 +56,19 @@ export const focusClientPane = async (
   }
 }
 
+export const enterCopyMode = async (
+  tmux: TmuxClient,
+  paneId: string,
+): Promise<void> => {
+  try {
+    await tmux.run(['copy-mode', '-t', paneId])
+  } catch (error) {
+    throw new Error('tmux-fuzzy-motion: failed to enter copy-mode', {
+      cause: error,
+    })
+  }
+}
+
 export const getPaneStartContext = async (
   tmux: TmuxClient,
   paneId: string,
@@ -90,13 +103,9 @@ export const getPaneStartContext = async (
     throw new Error('tmux-fuzzy-motion: failed to resolve pane context')
   }
 
-  if (paneInMode !== '1') {
-    throw new Error('tmux-fuzzy-motion: pane is not in copy-mode')
-  }
-
   return {
     paneId: resolvedPaneId,
-    inCopyMode: true,
+    inCopyMode: paneInMode === '1',
     width: Number(width),
     height: Number(height),
     currentPath,

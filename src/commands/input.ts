@@ -580,6 +580,9 @@ export const runPopupLive = async (args: string[]): Promise<number> => {
 
   try {
     const pane = await getPaneStartContext(tmux, paneId)
+    if (!pane.inCopyMode) {
+      throw new Error('tmux-fuzzy-motion: pane is not in copy-mode')
+    }
     const capture = fitCaptureToHeight(
       await capturePane(tmux, paneId),
       pane.height,

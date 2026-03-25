@@ -12,6 +12,7 @@ import {
 import {
   createTmuxClient,
   displayPopup,
+  enterCopyMode,
   focusClientPane,
   getPaneStartContext,
 } from '../infra/tmux'
@@ -70,6 +71,9 @@ export const runStart = async (args: string[]): Promise<number> => {
   try {
     const pane = await getPaneStartContext(tmux, paneId)
     await focusClientPane(tmux, paneId, clientTty)
+    if (!pane.inCopyMode) {
+      await enterCopyMode(tmux, paneId)
+    }
     const capture = fitCaptureToHeight(
       await capturePane(tmux, paneId),
       pane.height,

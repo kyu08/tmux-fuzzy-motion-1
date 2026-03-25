@@ -2,7 +2,7 @@
 
 [日本語版はこちら](./README.ja.md)
 
-`tmux-fuzzy-motion` is a CLI for quick cursor jumps inside `tmux copy-mode`.
+`tmux-fuzzy-motion` is a CLI for quick cursor jumps in tmux panes.
 It scans the current viewport, extracts jump targets, filters them with fuzzy
 search, and lets you jump with uppercase hints. Roman queries can also match
 Japanese text through Migemo.
@@ -10,6 +10,7 @@ Japanese text through Migemo.
 ## Features
 
 - Works inside `tmux copy-mode`
+- `start` can also be launched outside copy-mode and enters copy-mode automatically
 - Extracts URLs, paths, filenames, symbols, and general words from the current viewport
 - Supports fuzzy matching with `fzf`
 - Supports Migemo matching for alphabetic queries via `jsmigemo`
@@ -56,6 +57,13 @@ bind-key -T copy-mode-vi s run-shell 'tmux-fuzzy-motion start #{pane_id} #{clien
 bind-key -T copy-mode s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
 ```
 
+If you also want to launch it outside copy-mode, add a binding in the root
+table as well:
+
+```tmux
+bind-key s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+```
+
 If you want tmux to open the popup directly without going through the `start`
 subcommand, use this instead:
 
@@ -66,6 +74,7 @@ bind-key -T copy-mode s run-shell -C "display-popup -E -B -x '##{popup_pane_left
 
 > [!NOTE]
 > If you see an error like `'tmux-fuzzy-motion start %25 /dev/ttys000' returned 127` at step 2 below, you need to add `tmux-fuzzy-motion` to the PATH in the run-shell environment:
+>
 > ```tmux
 > set-environment -g PATH "/path/to/node/bin:$PATH"
 > ```
@@ -78,8 +87,8 @@ tmux source-file ~/.tmux.conf
 
 ## Usage
 
-1. Enter `copy-mode`.
-2. Press `s`.
+1. Press the key bound to `tmux-fuzzy-motion start`.
+2. If the pane is not already in copy-mode, `start` enters copy-mode first.
 3. Type a query in lowercase or symbols.
 4. Narrow the candidates with fuzzy matching.
 5. For alphabetic queries, Migemo also expands roman input to Japanese matches.

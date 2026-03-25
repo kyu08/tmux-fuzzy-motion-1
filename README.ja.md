@@ -2,14 +2,15 @@
 
 [English README](./README.md)
 
-`tmux-fuzzy-motion` は、`tmux copy-mode` 内で素早くカーソル移動するための
-CLI です。現在の viewport からジャンプ対象を抽出し、fuzzy search で絞り込み、
+`tmux-fuzzy-motion` は、tmux pane 内で素早くカーソル移動するための CLI です。
+現在の viewport からジャンプ対象を抽出し、fuzzy search で絞り込み、
 大文字の hint で移動できます。英字のローマ字 query に対しては Migemo による
 日本語マッチも行います。
 
 ## 特徴
 
 - `tmux copy-mode` 内で動作
+- `start` は copy mode の外から起動しても自動で copy mode に入る
 - 現在の viewport から URL、path、filename、symbol、一般的な単語を抽出
 - `fzf` による fuzzy match
 - `jsmigemo` による英字 query の Migemo マッチ
@@ -56,6 +57,12 @@ bind-key -T copy-mode-vi s run-shell 'tmux-fuzzy-motion start #{pane_id} #{clien
 bind-key -T copy-mode s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
 ```
 
+copy mode の外からも起動したい場合は、root table にも bind を追加します。
+
+```tmux
+bind-key s run-shell 'tmux-fuzzy-motion start #{pane_id} #{client_tty}'
+```
+
 `start` サブコマンドを経由せずに tmux から直接 popup を開きたい場合は、次の設定も使えます。
 
 ```tmux
@@ -65,6 +72,7 @@ bind-key -T copy-mode s run-shell -C "display-popup -E -B -x '##{popup_pane_left
 
 > [!NOTE]
 > 後述の手順の`2.`で`'tmux-fuzzy-motion start %25 /dev/ttys000' returned 127`のようなエラーが表示される場合は以下のようにrun-shell環境のPATHに`tmux-fuzzy-motion`を含める必要があります。
+>
 > ```tmux
 > set-environment -g PATH "/path/to/node/bin:$PATH"
 > ```
@@ -77,8 +85,8 @@ tmux source-file ~/.tmux.conf
 
 ## 使い方
 
-1. `copy-mode` に入る
-2. `s` を押す
+1. `tmux-fuzzy-motion start` を bind したキーを押す
+2. pane がまだ `copy-mode` でなければ、`start` が先に `copy-mode` に入る
 3. 小文字や記号で query を入力する
 4. fuzzy match で候補を絞り込む
 5. 英字 query の場合は Migemo による日本語候補も対象になる

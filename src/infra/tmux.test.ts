@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createMoveCursorCommands } from '../core/action'
-import { displayPopup, focusClientPane, getPaneStartContext } from './tmux'
+import {
+  displayPopup,
+  enterCopyMode,
+  focusClientPane,
+  getPaneStartContext,
+} from './tmux'
 
 describe('tmux helpers', () => {
   it('creates copy-mode cursor movement commands', () => {
@@ -37,7 +42,7 @@ describe('tmux helpers', () => {
     })
   })
 
-  it('fails when the target pane is not in copy-mode', async () => {
+  it('keeps track of panes outside copy-mode', async () => {
     const tmux = {
       run: vi.fn(),
       runQuiet: vi.fn(),
@@ -46,9 +51,13 @@ describe('tmux helpers', () => {
         .mockResolvedValueOnce('%127\t0\t181\t64\t/tmp/tmux-fuzzy-motion'),
     }
 
-    await expect(getPaneStartContext(tmux, '%127')).rejects.toThrow(
-      'tmux-fuzzy-motion: pane is not in copy-mode',
-    )
+    await expect(getPaneStartContext(tmux, '%127')).resolves.toEqual({
+      paneId: '%127',
+      inCopyMode: false,
+      width: 181,
+      height: 64,
+      currentPath: '/tmp/tmux-fuzzy-motion',
+    })
   })
 
   it('maps switch-client failures to a client not found error', async () => {
@@ -109,5 +118,29 @@ describe('tmux helpers', () => {
       '--state-file',
       '/tmp/state.json',
     ])
+  })
+
+  it('enters copy-mode for the target pane', async () => {
+    const tmux = {
+      run: vi.fn().mockResolvedValue(undefined),
+      runQuiet: vi.fn(),
+      capture: vi.fn(),
+    }
+
+    await expect(enterCopyMode(tmux, '%127')).resolves.toBeUndefined()
+
+    expect(tmux.run).toHaveBeenCalledWith(['copy-mode', '-t', '%127'])
+  })
+
+  it('maps copy-mode failures to a dedicated error', async () => {
+    const tmux = {
+      run: vi.fn().mockRejectedValueOnce(new Error('copy-mode failed')),
+      runQuiet: vi.fn(),
+      capture: vi.fn(),
+    }
+
+    await expect(enterCopyMode(tmux, '%127')).rejects.toThrow(
+      'tmux-fuzzy-motion: failed to enter copy-mode',
+    )
   })
 })

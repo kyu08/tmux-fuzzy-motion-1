@@ -24,6 +24,7 @@ const runtimeMocks = vi.hoisted(() => ({
 const tmuxMocks = vi.hoisted(() => ({
   createTmuxClient: vi.fn(),
   displayPopup: vi.fn(),
+  enterCopyMode: vi.fn(),
   focusClientPane: vi.fn(),
   getPaneStartContext: vi.fn(),
 }))
@@ -65,6 +66,7 @@ describe('runStart', () => {
 
     tmuxMocks.createTmuxClient.mockReturnValue(tmux)
     tmuxMocks.displayPopup.mockResolvedValue(undefined)
+    tmuxMocks.enterCopyMode.mockResolvedValue(undefined)
     tmuxMocks.focusClientPane.mockResolvedValue(undefined)
     tmuxMocks.getPaneStartContext.mockResolvedValue({
       paneId: '%127',
@@ -163,5 +165,22 @@ describe('runStart', () => {
 
     expect(tmuxMocks.displayPopup).toHaveBeenCalledTimes(1)
     expect(actionMocks.moveCopyCursor).not.toHaveBeenCalled()
+  })
+
+  it('enters copy-mode before opening the popup when needed', async () => {
+    tmuxMocks.getPaneStartContext.mockResolvedValueOnce({
+      paneId: '%127',
+      inCopyMode: false,
+      currentPath: '/tmp',
+      width: 80,
+      height: 16,
+    })
+
+    const { runStart } = await import('./start')
+
+    await expect(runStart(['%127', '/dev/ttys001'])).resolves.toBe(0)
+
+    expect(tmuxMocks.enterCopyMode).toHaveBeenCalledWith(tmux, '%127')
+    expect(tmuxMocks.displayPopup).toHaveBeenCalledTimes(1)
   })
 })
